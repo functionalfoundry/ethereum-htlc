@@ -28,8 +28,6 @@ contract HTLC {
     }
 
     Exchange public exchange;
-    bytes32 public IMAGE;
-    bytes32 public PREIMAGE;
 
     function HTLC (address recipient, bytes32 image, uint expirationTime) payable {
         exchange.sender = msg.sender;
@@ -37,15 +35,12 @@ contract HTLC {
         exchange.image = image;
         exchange.expires = now + expirationTime;
         exchange.state = ExchangeState.INITIATED;
-        IMAGE = image;
     }
 
-    function complete (bytes32 preimage) public {
-        //require(sha256(preimage) == exchange.image);
+    function complete (bytes preimage) public {
+        require(hash(preimage) == exchange.image);
         require(msg.sender == exchange.recipient);
         require(exchange.state == ExchangeState.INITIATED);
-
-        PREIMAGE = preimage;
 
         if (now <= exchange.expires) {
             msg.sender.transfer(this.balance);
@@ -55,8 +50,8 @@ contract HTLC {
         }
     }
 
-    function reclaim (bytes32 preimage) public {
-        require(sha256(preimage) == exchange.image);
+    function reclaim (bytes preimage) public {
+        require(hash(preimage) == exchange.image);
         require(msg.sender == exchange.sender);
         require(
             exchange.state == ExchangeState.EXPIRED ||
@@ -74,5 +69,9 @@ contract HTLC {
                 revert(); // Is this the right thing to do?
             }
         }
+    }
+
+    function hash (bytes preimage) internal returns (bytes32 image) {
+      return sha256(preimage);
     }
 }

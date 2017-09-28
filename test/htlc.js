@@ -1,7 +1,7 @@
 const shajs = require('sha.js')
+const pad = require('pad')
 
 const HTLC = artifacts.require('./HTLC.sol')
-
 /**
  * Utilities
  */
@@ -33,9 +33,7 @@ contract('HTLC', async accounts => {
     const sender = accounts[0]
     const recipient = accounts[1]
 
-    const image = shajs('sha256')
-      .update('secret')
-      .digest('hex')
+    const image = shajs('sha256').update('secret').digest('hex')
 
     const senderBalanceBefore = web3.eth.getBalance(sender)
     const recipientBalanceBefore = web3.eth.getBalance(recipient)
@@ -70,13 +68,17 @@ contract('HTLC', async accounts => {
     )
   })
 
+  function bufferToAscii(buffer) {
+    return `0x${pad(buffer.toString('hex'), 64, '0')}`
+  }
+
   it('balances are correct after exchange is completed', async () => {
     const sender = accounts[0]
     const recipient = accounts[1]
+    const secret = 'secret'
 
-    const image = shajs('sha256')
-      .update('secret')
-      .digest('hex')
+    const imageBuffer = shajs('sha256').update(secret).digest()
+    const image = bufferToAscii(imageBuffer)
 
     const senderBalanceBefore = web3.eth.getBalance(sender)
     const recipientBalanceBefore = web3.eth.getBalance(recipient)
@@ -89,10 +91,7 @@ contract('HTLC', async accounts => {
     })
 
     // Complete the exchange and send the 2 ETH to the recipient
-    const completion = await instance.complete(
-      'secret', // This should really be the secret, I guess?
-      { from: recipient }
-    )
+    const completion = await instance.complete(secret, { from: recipient })
 
     // Verify that the contract balance is back to 0
     const balance = web3.eth.getBalance(instance.address)
