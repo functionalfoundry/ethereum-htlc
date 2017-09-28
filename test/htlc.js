@@ -23,7 +23,7 @@ const hash = preimage => sha256(preimage)
 contract('HTLC', async accounts => {
   before(() => {})
 
-  it('conversion helpers between Ether and Wei are correct:', () => {
+  it('conversion helpers between Ether and Wei are correct', () => {
     assert(2 == weiToEther(etherToWei(2)), 'Wei <-> Ether conversion is correct')
   })
 
@@ -127,7 +127,7 @@ contract('HTLC', async accounts => {
     )
   })
 
-  it('allows owner to reclaim tokens after time expiration', async () => {
+  it('allows the sender to reclaim their ETH after time expiration', async () => {
     const sender = accounts[0]
     const recipient = accounts[1]
     const secret = 'secret'

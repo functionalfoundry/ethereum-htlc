@@ -1,6 +1,5 @@
 pragma solidity ^0.4.0;
 
-
 /**
  * @title Hashed time-locked contract.
  */
@@ -25,6 +24,15 @@ contract HTLC {
     // State of the exchange
     State state;
 
+    bool locked;
+    modifier noReentrancy() {
+      require(!locked);
+      locked = true;
+      _;
+      locked = false;
+    }
+
+
     function HTLC (address _recipient, bytes32 _image, uint _expirationTime) payable {
         sender = msg.sender;
         recipient = _recipient;
@@ -33,7 +41,7 @@ contract HTLC {
         state = State.INITIATED;
     }
 
-    function complete (bytes _preimage) public {
+    function complete (bytes _preimage) public noReentrancy {
         require(hash(_preimage) == image);
         require(msg.sender == recipient);
         require(state == State.INITIATED);
@@ -46,7 +54,7 @@ contract HTLC {
         }
     }
 
-    function reclaim (bytes _preimage) public {
+    function reclaim (bytes _preimage) public noReentrancy {
         require(hash(_preimage) == image);
         require(msg.sender == sender);
         require(
