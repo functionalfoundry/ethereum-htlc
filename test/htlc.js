@@ -76,6 +76,12 @@ contract('HTLC', async accounts => {
     return `0x${pad(buffer, 64, '0')}`
   }
 
+  function delay(t) {
+    return new Promise(function(resolve) {
+      setTimeout(resolve, t)
+    })
+  }
+
   it('balances are correct after exchange is completed', async () => {
     const sender = accounts[0]
     const recipient = accounts[1]
@@ -119,5 +125,61 @@ contract('HTLC', async accounts => {
         .equals(recipientBalanceAfter),
       'Receipient balance is 2 ETH more than before'
     )
+  })
+
+  it('allows owner to reclaim tokens after time expiration', async () => {
+    const sender = accounts[0]
+    const recipient = accounts[1]
+    const secret = 'secret'
+
+    const image = to32(hash(secret))
+
+    const senderBalanceBefore = web3.eth.getBalance(sender)
+    const recipientBalanceBefore = web3.eth.getBalance(recipient)
+
+    // Create a HTLC contract to send 2 ETH from sender to recipient
+    // if the recipient can provide the secret within 100ms
+    const instance = await HTLC.new(recipient, image, 0.1, {
+      from: sender,
+      value: etherToWei(2),
+    })
+    await delay(1000)
+    const reclamation = await instance.reclaim(secret, { from: sender })
+
+    // Verify that the contract balance is back to 0
+    const balance = web3.eth.getBalance(instance.address)
+    assert(weiToEther(balance).equals(0), 'Contract balance is 0 ETH')
+
+    // // Verify that the sender has had their balance restored minus fees
+    const senderBalanceAfter = web3.eth.getBalance(sender)
+    assert(
+      senderBalanceBefore
+        .minus(transactionCost(instance.transactionHash))
+        .minus(transactionCost(reclamation.tx))
+        .equals(senderBalanceAfter),
+      'Sender balance has been restored minus feels'
+    )
+  })
+
+  it('prevents the sender from reclaiming their ETH before the expiration', async () => {
+    const sender = accounts[0]
+    const recipient = accounts[1]
+    const secret = 'secret'
+
+    const image = to32(hash(secret))
+
+    // Create a HTLC contract to send 2 ETH from sender to recipient
+    // if the recipient can provide the secret within 10 seconds
+    const instance = await HTLC.new(recipient, image, 10, {
+      from: sender,
+      value: etherToWei(2),
+    })
+    await delay(500)
+    try {
+      await instance.reclaim(secret, { from: sender })
+    } catch (e) {
+      return
+    }
+    throw new Error('Expected calling reclaim before the exparation to throw')
   })
 })

@@ -62,7 +62,7 @@ contract HTLC {
                 msg.sender.transfer(this.balance);
                 state = State.RECLAIMED;
             } else {
-                revert(); // Is this the right thing to do?
+                revert();
             }
         }
     }
