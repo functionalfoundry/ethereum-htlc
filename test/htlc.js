@@ -12,6 +12,10 @@ const weiToEther = value => web3.fromWei(value, 'ether')
 const transactionCost = tx =>
   web3.eth.getTransactionReceipt(tx).gasUsed * web3.eth.getTransaction(tx).gasPrice
 
+const sha256 = preimage => shajs('sha256').update(preimage).digest('hex')
+
+const hash = preimage => sha256(preimage)
+
 /**
  * Contract tests
  */
@@ -33,7 +37,7 @@ contract('HTLC', async accounts => {
     const sender = accounts[0]
     const recipient = accounts[1]
 
-    const image = shajs('sha256').update('secret').digest('hex')
+    const image = hash('secret')
 
     const senderBalanceBefore = web3.eth.getBalance(sender)
     const recipientBalanceBefore = web3.eth.getBalance(recipient)
@@ -68,8 +72,8 @@ contract('HTLC', async accounts => {
     )
   })
 
-  function bufferToAscii(buffer) {
-    return `0x${pad(buffer.toString('hex'), 64, '0')}`
+  function to32(buffer) {
+    return `0x${pad(buffer, 64, '0')}`
   }
 
   it('balances are correct after exchange is completed', async () => {
@@ -77,8 +81,7 @@ contract('HTLC', async accounts => {
     const recipient = accounts[1]
     const secret = 'secret'
 
-    const imageBuffer = shajs('sha256').update(secret).digest()
-    const image = bufferToAscii(imageBuffer)
+    const image = to32(hash(secret))
 
     const senderBalanceBefore = web3.eth.getBalance(sender)
     const recipientBalanceBefore = web3.eth.getBalance(recipient)

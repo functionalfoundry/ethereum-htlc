@@ -5,73 +5,69 @@ pragma solidity ^0.4.0;
  * @title Hashed time-locked contract.
  */
 contract HTLC {
-    enum ExchangeState {
+    enum State {
         INITIATED,
         COMPLETED,
         EXPIRED,
         RECLAIMED
     }
 
-    struct Exchange {
-        // Participants in the exchange
-        address sender;
-        address recipient;
+    // Participants in the exchange
+    address sender;
+    address recipient;
 
-        // Secret hashed by sender
-        bytes32 image;
+    // Secret hashed by sender
+    bytes32 image;
 
-        // Expiration timestamp
-        uint expires;
+    // Expiration timestamp
+    uint expires;
 
-        // State of the exchange
-        ExchangeState state;
+    // State of the exchange
+    State state;
+
+    function HTLC (address _recipient, bytes32 _image, uint _expirationTime) payable {
+        sender = msg.sender;
+        recipient = _recipient;
+        image = _image;
+        expires = now + _expirationTime;
+        state = State.INITIATED;
     }
 
-    Exchange public exchange;
+    function complete (bytes _preimage) public {
+        require(hash(_preimage) == image);
+        require(msg.sender == recipient);
+        require(state == State.INITIATED);
 
-    function HTLC (address recipient, bytes32 image, uint expirationTime) payable {
-        exchange.sender = msg.sender;
-        exchange.recipient = recipient;
-        exchange.image = image;
-        exchange.expires = now + expirationTime;
-        exchange.state = ExchangeState.INITIATED;
-    }
-
-    function complete (bytes preimage) public {
-        require(hash(preimage) == exchange.image);
-        require(msg.sender == exchange.recipient);
-        require(exchange.state == ExchangeState.INITIATED);
-
-        if (now <= exchange.expires) {
+        if (now <= expires) {
             msg.sender.transfer(this.balance);
-            exchange.state = ExchangeState.COMPLETED;
+            state = State.COMPLETED;
         } else {
-            exchange.state = ExchangeState.EXPIRED;
+            state = State.EXPIRED;
         }
     }
 
-    function reclaim (bytes preimage) public {
-        require(hash(preimage) == exchange.image);
-        require(msg.sender == exchange.sender);
+    function reclaim (bytes _preimage) public {
+        require(hash(_preimage) == image);
+        require(msg.sender == sender);
         require(
-            exchange.state == ExchangeState.EXPIRED ||
-            exchange.state == ExchangeState.INITIATED
+            state == State.EXPIRED ||
+            state == State.INITIATED
         );
 
-        if (exchange.state == ExchangeState.EXPIRED) {
+        if (state == State.EXPIRED) {
             msg.sender.transfer(this.balance);
-            exchange.state = ExchangeState.RECLAIMED;
-        } else if (exchange.state == ExchangeState.INITIATED) {
-            if (now > exchange.expires) {
+            state = State.RECLAIMED;
+        } else if (state == State.INITIATED) {
+            if (now > expires) {
                 msg.sender.transfer(this.balance);
-                exchange.state = ExchangeState.RECLAIMED;
+                state = State.RECLAIMED;
             } else {
                 revert(); // Is this the right thing to do?
             }
         }
     }
 
-    function hash (bytes preimage) internal returns (bytes32 image) {
-      return sha256(preimage);
+    function hash (bytes _preimage) internal returns (bytes32 _image) {
+      return sha256(_preimage);
     }
 }
