@@ -27,10 +27,10 @@ contract HTLC is ReentrancyGuard {
     State state;
 
     // Events
-    event Initiated(address from, address to, uint amount, uint expirationTimestamp);
-    event Completed(address from, address to, uint amount);
-    event Expired(address from, address to, uint amount);
-    event Reclaimed(address from, uint amount);
+    event Initiated(address _sender, address _recipient, uint _amount, uint _expires);
+    event Completed(address _sender, address _recipient, uint _amount);
+    event Expired(address _sender, address _recipient, uint _amount);
+    event Reclaimed(address _sender, uint _amount);
 
     function HTLC (address _recipient, bytes32 _image, uint _expirationTime) payable {
         // Define internal state
