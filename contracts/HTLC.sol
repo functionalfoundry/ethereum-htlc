@@ -41,7 +41,12 @@ contract HTLC {
         state = State.INITIATED;
     }
 
-    function complete (bytes _preimage) public noReentrancy {
+    /**
+     *  Called by the recipient once they've obtained the primage from the sender.
+     *  This allows them to receive their ETH and complete the transaction.
+     *  @param _preimage - The secret that when hashed will produce the original image
+     */
+    function complete (bytes32 _preimage) public noReentrancy {
         require(hash(_preimage) == image);
         require(msg.sender == recipient);
         require(state == State.INITIATED);
@@ -54,7 +59,13 @@ contract HTLC {
         }
     }
 
-    function reclaim (bytes _preimage) public noReentrancy {
+    /**
+     *  Called by the sender after the expiration time has elapsed. If the recipient
+     *  was not able to complete the transaction in time and the sender can prove
+     *  they have the secret they're able to reclaim their funds.
+     *  @param _preimage - The secret that when hashed will produce the original image
+     */
+    function reclaim (bytes32 _preimage) public noReentrancy {
         require(hash(_preimage) == image);
         require(msg.sender == sender);
         require(
@@ -75,7 +86,13 @@ contract HTLC {
         }
     }
 
-    function hash (bytes _preimage) internal returns (bytes32 _image) {
-      return sha256(_preimage);
+    /**
+     *  The hash function for producing the image from the preimage. Right now
+     *  this is using SHA256 but it should be updated to use SHA256d.
+     *  @param _preimage - The value to hash
+     *  @return The hashed image
+     */
+    function hash (bytes32 _preimage) internal returns (bytes32 _image) {
+        return sha256(_preimage);
     }
 }
