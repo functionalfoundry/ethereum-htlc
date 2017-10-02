@@ -10,6 +10,17 @@ const HTLC = artifacts.require('./HTLC.sol')
 const etherToWei = value => web3.toWei(value, 'ether')
 const weiToEther = value => web3.fromWei(value, 'ether')
 
+// 0-pads a string to 64 characters (32 bytes)
+const to32No0x = buffer => pad(buffer, 64, '0')
+// 0-pads a string into 64 characters (32 bytes) and prepends a 0x
+const to32 = buffer => `0x${to32No0x(buffer)}`
+// Converts an ascii string into a hex string
+const encodeString = str => Buffer.from(str).toString('hex')
+// Converts a hex string into an ascii string
+const decodeString = hex => new Buffer(to32No0x(hex), 'hex').toString()
+
+const delay = t => new Promise(resolve => setTimeout(resolve, t))
+
 const transactionCost = tx =>
   web3.eth.getTransactionReceipt(tx).gasUsed * web3.eth.getTransaction(tx).gasPrice
 
@@ -91,7 +102,12 @@ contract('HTLC', async accounts => {
     const recipient = accounts[1]
     const secret = 'secret'
 
-    const image = to32(hash(secret))
+    /**
+     * This decode(encode(x)) is absolute magic. I can't explain why this is necessary but it's the only way
+     * I've found to get the images to match between JS and the EVM when using a 32-byte
+     * preimage.
+     */
+    const image = to32(hash(decodeString(encodeString(secret))))
 
     const senderBalanceBefore = web3.eth.getBalance(sender)
     const recipientBalanceBefore = web3.eth.getBalance(recipient)
@@ -104,6 +120,7 @@ contract('HTLC', async accounts => {
     })
 
     // Complete the exchange and send the 2 ETH to the recipient
+
     const completion = await instance.complete(secret, { from: recipient })
 
     // Verify that the contract balance is back to 0
@@ -135,8 +152,7 @@ contract('HTLC', async accounts => {
     const sender = accounts[0]
     const recipient = accounts[1]
     const secret = 'secret'
-
-    const image = to32(hash(secret))
+    const image = to32(hash(decodeString(encodeString(secret))))
 
     const senderBalanceBefore = web3.eth.getBalance(sender)
     const recipientBalanceBefore = web3.eth.getBalance(recipient)
@@ -174,7 +190,7 @@ contract('HTLC', async accounts => {
     const recipient = accounts[1]
     const secret = 'secret'
 
-    const image = to32(hash(secret))
+    const image = to32(hash(decodeString(encodeString(secret))))
 
     // Create a HTLC contract to send 2 ETH from sender to recipient
     // if the recipient can provide the secret within 10 seconds
