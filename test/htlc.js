@@ -24,9 +24,22 @@ const delay = t => new Promise(resolve => setTimeout(resolve, t))
 const transactionCost = tx =>
   web3.eth.getTransactionReceipt(tx).gasUsed * web3.eth.getTransaction(tx).gasPrice
 
-const sha256 = preimage => shajs('sha256').update(preimage).digest('hex')
+const sha256 = preimage =>
+  shajs('sha256')
+    .update(preimage)
+    .digest('hex')
 
 const hash = preimage => sha256(preimage)
+
+const to32 = buffer => `0x${pad(buffer, 64, '0')}`
+
+const increaseTime = seconds =>
+  web3.currentProvider.send({
+    jsonrpc: '2.0',
+    method: 'evm_increaseTime',
+    params: [seconds],
+    id: 0,
+  })
 
 /**
  * Contract tests
@@ -150,14 +163,18 @@ contract('HTLC', async accounts => {
       from: sender,
       value: etherToWei(2),
     })
-    await delay(1000)
+
+    // Advance the time by one second
+    increaseTime(1)
+
+    // Reclaim the ether
     const reclamation = await instance.reclaim(secret, { from: sender })
 
     // Verify that the contract balance is back to 0
     const balance = web3.eth.getBalance(instance.address)
     assert(weiToEther(balance).equals(0), 'Contract balance is 0 ETH')
 
-    // // Verify that the sender has had their balance restored minus fees
+    // Verify that the sender has had their balance restored minus fees
     const senderBalanceAfter = web3.eth.getBalance(sender)
     assert(
       senderBalanceBefore
@@ -181,7 +198,11 @@ contract('HTLC', async accounts => {
       from: sender,
       value: etherToWei(2),
     })
-    await delay(500)
+
+    // Advance the time by a second
+    increaseTime(1)
+
+    // Attempt to reclaim too early
     try {
       await instance.reclaim(secret, { from: sender })
     } catch (e) {

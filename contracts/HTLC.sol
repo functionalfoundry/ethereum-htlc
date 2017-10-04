@@ -1,9 +1,11 @@
 pragma solidity ^0.4.0;
 
+import 'zeppelin-solidity/contracts/ReentrancyGuard.sol';
+
 /**
  * @title Hashed time-locked contract.
  */
-contract HTLC {
+contract HTLC is ReentrancyGuard {
     enum State {
         INITIATED,
         COMPLETED,
@@ -24,21 +26,22 @@ contract HTLC {
     // State of the exchange
     State state;
 
-    bool locked;
-    modifier noReentrancy() {
-      require(!locked);
-      locked = true;
-      _;
-      locked = false;
-    }
-
+    // Events
+    event Initiated(address _sender, address _recipient, uint _amount, uint _expires);
+    event Completed(address _sender, address _recipient, uint _amount);
+    event Expired(address _sender, address _recipient, uint _amount);
+    event Reclaimed(address _sender, uint _amount);
 
     function HTLC (address _recipient, bytes32 _image, uint _expirationTime) payable {
+        // Define internal state
         sender = msg.sender;
         recipient = _recipient;
         image = _image;
         expires = now + _expirationTime;
         state = State.INITIATED;
+
+        // Emit an 'Initiated' event
+        Initiated(sender, recipient, msg.value, expires);
     }
 
     /**
@@ -46,16 +49,26 @@ contract HTLC {
      *  This allows them to receive their ETH and complete the transaction.
      *  @param _preimage - The secret that when hashed will produce the original image
      */
-    function complete (bytes32 _preimage) public noReentrancy {
+    function complete (bytes32 _preimage) public nonReentrant {
         require(hash(_preimage) == image);
         require(msg.sender == recipient);
         require(state == State.INITIATED);
 
+        // Check if the completion comes early enough
         if (now <= expires) {
+            // Remember the amount to be transfered
+            uint amount = this.balance;
+
+            // Attempt to transfer it
             msg.sender.transfer(this.balance);
+
+            // The exchange is completed
             state = State.COMPLETED;
+            Completed(sender, recipient, amount);
         } else {
+            // The exchange has expired
             state = State.EXPIRED;
+            Expired(sender, recipient, this.balance);
         }
     }
 
@@ -65,7 +78,7 @@ contract HTLC {
      *  they have the secret they're able to reclaim their funds.
      *  @param _preimage - The secret that when hashed will produce the original image
      */
-    function reclaim (bytes32 _preimage) public noReentrancy {
+    function reclaim (bytes32 _preimage) public nonReentrant {
         require(hash(_preimage) == image);
         require(msg.sender == sender);
         require(
@@ -73,18 +86,23 @@ contract HTLC {
             state == State.INITIATED
         );
 
-        if (state == State.EXPIRED) {
-            msg.sender.transfer(this.balance);
+        // Check if reclaiming is possible at all
+        if (state == State.EXPIRED || state == State.INITIATED && now > expires) {
+            // Remember the amount to be transfered
+            uint amount = this.balance;
+
+            // Attempt to transfer it
+            sender.transfer(amount);
+
+            // The intiator has reclaimed their funds
             state = State.RECLAIMED;
-        } else if (state == State.INITIATED) {
-            if (now > expires) {
-                msg.sender.transfer(this.balance);
-                state = State.RECLAIMED;
-            } else {
-                revert();
-            }
+            Reclaimed(sender, amount);
+        } else {
+            revert();
         }
     }
+
+    // Helper functions
 
     /**
      *  The hash function for producing the image from the preimage. Right now
